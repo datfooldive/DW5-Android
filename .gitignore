@@ -1,0 +1,14 @@
+# the player's own files, and what the build makes from them
+# symlinks to the player's copy and the recompiled code: no trailing slash, which would match only directories
+/assets
+/generated
+iso/
+third_party/
+out/
+.build/
+app/build/
+.cxx/
+.gradle/
+local.properties
+*.log
+build/

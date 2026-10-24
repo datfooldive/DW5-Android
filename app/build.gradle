@@ -1,0 +1,74 @@
+plugins {
+    id "com.android.application"
+}
+
+// SDL3 at the version the SDK's build uses: its Java side goes into the APK, its C side into libSDL3.so
+def sdlDir = file("../third_party/SDL")
+def sdlTag = "release-3.4.16"
+tasks.register("fetchSDL") {
+    onlyIf { !new File(sdlDir, "CMakeLists.txt").exists() }
+    doLast {
+        exec {
+            commandLine "git", "clone", "--depth", "1", "--branch", sdlTag, "https://github.com/libsdl-org/SDL.git",
+                        sdlDir.absolutePath
+        }
+    }
+}
+preBuild.dependsOn "fetchSDL"
+
+android {
+    namespace "com.datfooldive.dw5"
+    compileSdk 36
+    ndkVersion "30.0.16138531"
+
+    defaultConfig {
+        applicationId "com.datfooldive.dw5"
+        minSdk 29
+        targetSdk 36
+        versionCode project.hasProperty("versionCode") ? project.versionCode.toInteger() : 1
+        versionName project.hasProperty("versionName") ? project.versionName : "0.1"
+        ndk {
+            abiFilters "arm64-v8a"
+        }
+        externalNativeBuild {
+            cmake {
+                arguments "-DANDROID_STL=c++_shared"
+                if (project.hasProperty("xbeGenerated")) arguments "-DXBE_GENERATED=${project.xbeGenerated}"
+                if (project.hasProperty("xbeImage")) arguments "-DXBE_IMAGE=${project.xbeImage}"
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.debug
+        }
+        debug {
+            // the recompiled code is far too slow unoptimized
+            externalNativeBuild {
+                cmake {
+                    arguments "-DCMAKE_BUILD_TYPE=Release"
+                }
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path "../CMakeLists.txt"
+            version "3.22.1"
+        }
+    }
+
+    sourceSets {
+        main {
+            java.srcDirs += new File(sdlDir, "android-project/app/src/main/java")
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
