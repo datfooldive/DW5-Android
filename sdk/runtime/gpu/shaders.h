@@ -102,6 +102,7 @@ struct DrawConstants {
     float lt[8][7][4];   // per light: diffuse, specular, ambient, position range, direction falloff, attenuation, cos theta/2 phi/2
     float rtshift[4];    // per kTexTarget stage: host pixels its reads move along x and y, negative up and left
     float uvclamp[4];    // stage 0's coordinates kept within: low u v, high u v (UvClamp)
+    float wide[4];       // ultrawide: x what the 2D layer is pulled in by, 0 off; y 1 for a pretransformed draw
 };
 
 }  // namespace gpu

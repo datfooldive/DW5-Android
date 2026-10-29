@@ -74,7 +74,7 @@ written to `settings.toml` at once.
 | **Anisotropic filtering** | the game's own, or 2X to 16X over it | GAME DEFAULT |
 | **Vertical sync** | FIFO, or immediate / mailbox tearing without it | ON |
 | **Frame skip** | AUTO: a frame left undrawn while the drawing is behind, the game still at its speed | AUTO |
-| **Aspect ratio** | the TV's shape, 16:9, the whole screen stretched, or the whole screen covered with the overflow cut | ORIGINAL |
+| **Aspect ratio** | the TV's shape, 16:9, the whole screen stretched, the whole screen covered with the overflow cut, or ultrawide: the camera sees as wide as the screen with nothing stretched, the HUD kept 16:9 in the middle | ULTRAWIDE |
 | **FPS counter** | the frame rate in the top left corner, amber under the cap | ON |
 | **HDR** | HDR10 when the display offers it; greyed when it does not | OFF |
 | **Button size** | 50 to 150%, the layout's positions kept | 100% |

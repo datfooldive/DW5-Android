@@ -82,7 +82,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_datfooldive_dw5_DW5Activity_nativeSet
         case kAniso: s.aniso = uint32_t(std::clamp<jint>(value, 0, 16)); break;
         case kVsync: s.vsync = value != 0; break;
         case kFrameSkip: o.frame_skip = value != 0; break;
-        case kAspect: o.aspect = uint32_t(std::clamp<jint>(value, 0, 3)); break;
+        case kAspect: o.aspect = uint32_t(std::clamp<jint>(value, 0, 4)); break;
         case kFpsCounter: o.fps_counter = value != 0; break;
         case kHdr: o.hdr_output = value != 0 && game::g_hdr_display.load(); break;
         case kControlsScale: o.controls_scale = uint32_t(std::clamp<jint>(value, 50, 150)); break;
@@ -102,7 +102,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_datfooldive_dw5_DW5Activity_nativeSet
     o.smaa = false;
     o.msaa = 0;
     o.frame_skip = true;
-    o.aspect = 0;
+    o.aspect = 4;
     o.fps_counter = true;
     o.hdr_output = false;
     o.controls_scale = 100;

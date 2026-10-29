@@ -58,6 +58,7 @@ const char* kCommonTail = R"(    float4 spread[4];
     float4 lt[56];
     float4 rtshift;
     float4 uvclamp;
+    float4 wide;
 };
 )";
 
@@ -231,6 +232,10 @@ const char* kVsEpilogue = R"(
     if (surf.w == 0 && abs(p.x - (surf.x - 0.5)) < 1e-3) p.x = surf.x;
     if (surf.w == 0 && abs(p.y - (surf.y - 0.5)) < 1e-3) p.y = surf.y;
     q.x = p.x * 2 / surf.x - 1;
+    // ultrawide: the camera already sees wider and the frame is stretched across the screen, so the 2D layer (a
+    // pretransformed draw, or a program leaving oPos.w at 0) is pulled into the middle to keep its shape; a vertex on
+    // the target's left or right edge stays there, so a full screen pass still covers it all
+    if (wide.x != 0 && (wide.y != 0 || oPos.w == 0) && p.x > 1 && p.x < surf.x - 1) q.x /= wide.x;
     q.y = 1 - p.y * 2 / surf.y;
     q.z = p.z * surf.z;
     q.xyz *= p.w;

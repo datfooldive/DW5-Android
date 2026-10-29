@@ -10,6 +10,10 @@
 #include <thread>
 #include <vector>
 
+#ifdef __ANDROID__
+#include <android/log.h>
+#endif
+
 namespace fs = std::filesystem;
 
 namespace logx {
@@ -70,7 +74,12 @@ void Write(Level lv, const char* fmt, ...) {
         std::fwrite(line, 1, size_t(n), g_file);
         if (lv >= Level::Warn) std::fflush(g_file);
     }
+#ifdef __ANDROID__
+    // an app's stderr goes nowhere on Android: logcat carries the lines instead
+    __android_log_write(lv == Level::Error ? ANDROID_LOG_ERROR : ANDROID_LOG_INFO, "DW5", line);
+#else
     std::fwrite(line, 1, size_t(n), stderr);
+#endif
 }
 
 void Flush() {

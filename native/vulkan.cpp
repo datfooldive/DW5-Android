@@ -796,7 +796,7 @@ uint32_t Ms(const Target& t) { return t.res->samples; }
 // A guest edge as a host pixel: the low edge rounds down and the high edge up, so two rects that meet in guest space
 // meet in host space too, and no pixel between them is left out. Truncating both edges loses the last row and column
 // of every rect at a fractional render scale, which shows as a line or a cut where two rects join
-int32_t HostEdge(int32_t v, float sc, uint32_t limit, bool high) {
+int32_t HostEdge(double v, float sc, uint32_t limit, bool high) {
     double h = double(v) * double(sc);
     int32_t i = int32_t(high ? std::ceil(h) : std::floor(h));
     return std::clamp<int32_t>(i, 0, int32_t(limit));
@@ -1117,6 +1117,7 @@ private:
     bool MarksOcclusion(const PsoKey& k) const;
     VkPipeline EnsurePipeline(const PsoKey& k, VkShaderModule vs, VkShaderModule ps);
     float TargetScale() const;  // host pixels per console pixel of the bound target
+    bool WideDraw() const;      // ultrawide on and the bound target the frame's size: its 2D layer is pulled in
     float RenderTargetShift(const State& s, const DrawShaders& sh) const;
     void UploadConstants(const State& s, const DrawShaders& sh, const PsoKey& k, const DrawTextures& stages,
                          GuestExtent size, DrawConstants& c, Bindings& b);
@@ -1356,6 +1357,7 @@ private:
     uint32_t bb_w_ = 0;
     uint32_t bb_h_ = 0;
     float scale_ = 1.0f;
+    float wide_ = 1.0f;      // ultrawide: the screen's width over 16:9's at its height, 1 off (game::g_wide)
     uint32_t msaa_ = 1;      // samples in use
     uint32_t msaa_set_ = 0;  // the setting they came from
     // ambient occlusion: the raw pass and its first blur, each with view z beside it
@@ -3954,6 +3956,13 @@ float VulkanBackend::TargetScale() const {
     return float(t->w) / float(t->gw);
 }
 
+// the frame: the back buffer and the 512x448 scene Dynasty Warriors 5 draws before copying it there. The game's smaller
+// targets (shadows, the glow and blur chain) are read back stretched to the frame and stay as drawn
+bool VulkanBackend::WideDraw() const {
+    const Target* t = bound_rt_ ? bound_rt_ : bound_ds_;
+    return wide_ > 1 && t && t->gw * 2 > guest_w_ && t->gh * 2 > guest_h_;
+}
+
 // the XDK's screen space offset puts the console's positions half a pixel right and down of the host's, unless a
 // program writes them without c-37; render target reads move back that far (TexUv)
 float VulkanBackend::RenderTargetShift(const State& s, const DrawShaders& sh) const {
@@ -3978,6 +3987,10 @@ void VulkanBackend::UploadConstants(const State& s, const DrawShaders& sh, const
     if (sh.fixed_transform) {
         FillTransformConstants(s, size, c);
         FillLightConstants(s, sh.fk, c);
+    }
+    if (WideDraw()) {
+        c.wide[0] = wide_;
+        c.wide[1] = !sh.prog && !sh.fixed_transform ? 1.0f : 0.0f;
     }
     (void)k;
     b.cb[1] = ConstantBuffer(&c, sizeof(c));
@@ -4082,19 +4095,25 @@ void VulkanBackend::SetViewportScissor(const State& s, uint32_t gw, bool pretran
     uint32_t H = bound_rt_ ? bound_rt_->h : bound_ds_->h;
     SetViewport(0, 0, float(W), float(H));
     float sc = float(W) / float(gw);
+    // ultrawide: an edge inside the target pulled in as the 2D layer is (kVsEpilogue), the sides left where they are
+    bool wide = WideDraw();
+    auto gx = [&](int32_t x) {
+        double mid = gw / 2.0;
+        return !wide || x <= 0 || x >= int32_t(gw) ? double(x) : mid + (x - mid) / wide_;
+    };
     int32_t x0 = 0, y0 = 0, x1 = int32_t(W), y1 = int32_t(H);
     if (!pretransformed) {
-        x0 = HostEdge(int32_t(s.viewport.x), sc, W, false);
+        x0 = HostEdge(gx(int32_t(s.viewport.x)), sc, W, false);
         y0 = HostEdge(int32_t(s.viewport.y), sc, H, false);
-        x1 = HostEdge(int32_t(s.viewport.x + s.viewport.w), sc, W, true);
+        x1 = HostEdge(gx(int32_t(s.viewport.x + s.viewport.w)), sc, W, true);
         y1 = HostEdge(int32_t(s.viewport.y + s.viewport.h), sc, H, true);
     }
     // a scissor rect's far corner is its last pixel (the whole screen is 0 0 511 447): taken as the edge past it, the
     // last row of a cutscene's picture went undrawn, a line of the clear colour above the bottom letterbox bar
     if (s.scissor_count) {
-        x0 = std::max(x0, HostEdge(int32_t(s.scissors[0]), sc, W, false));
+        x0 = std::max(x0, HostEdge(gx(int32_t(s.scissors[0])), sc, W, false));
         y0 = std::max(y0, HostEdge(int32_t(s.scissors[1]), sc, H, false));
-        x1 = std::min(x1, HostEdge(int32_t(s.scissors[2]) + 1, sc, W, true));
+        x1 = std::min(x1, HostEdge(gx(int32_t(s.scissors[2]) + 1), sc, W, true));
         y1 = std::min(y1, HostEdge(int32_t(s.scissors[3]) + 1, sc, H, true));
     }
     SetScissor({x0, y0, x1, y1});
@@ -4860,6 +4879,7 @@ VulkanBackend::FramePlace VulkanBackend::PlaceFrame(const Target& t) {
     float tv = app::Widescreen() ? 16.0f / 9.0f : 4.0f / 3.0f;
     uint32_t shape = game::Opt().aspect;
     if (shape == 1) tv = 16.0f / 9.0f;
+    if (shape == 4) tv *= wide_;  // ultrawide: the picture the widened camera drew is the screen's shape
     // only the rows the title drew: the black it leaves under its picture is not shown, and the rows kept are as
     // tall as on the TV
     bool cut = shown_rows_ && shown_rows_ < t.gh;
@@ -4867,13 +4887,13 @@ VulkanBackend::FramePlace VulkanBackend::PlaceFrame(const Target& t) {
     float w = float(bb_w_);
     float h = float(bb_h_);
     FramePlace p;
-    if (shape >= 3) {
+    if (shape == 3) {
         // FILL: the picture keeps the TV's shape and is zoomed until the screen is covered, so a screen wider than the
         // TV loses rows at the top and bottom rather than gaining columns at the sides
         p.w = std::max(w, h * aspect);
         p.h = p.w / aspect;
     } else {
-        if (shape >= 2) aspect = w / std::max(h, 1.0f);
+        if (shape == 2) aspect = w / std::max(h, 1.0f);
         p.w = std::min(w, h * aspect);
         p.h = p.w / aspect;
     }
@@ -5205,6 +5225,18 @@ void VulkanBackend::Present(const Surface& front) {
 }
 
 void VulkanBackend::ApplySettings() {
+    // ultrawide: the camera hook widens the next frame's projection by as much as the screen is wider than 16:9
+    // against the picture's 16:9 as PlaceFrame shows it: only the rows the title drew (448 of 480), as tall as on the
+    // TV, so the cut picture is wider than 16:9 and the factor that fills the screen with it that much smaller
+    float was = wide_;
+    wide_ = 1;
+    float tv = 16.0f / 9.0f;
+    if (shown_rows_ && shown_rows_ < guest_h_) tv *= float(guest_h_) / float(shown_rows_);
+    if (game::Opt().aspect == 4 && app::Widescreen() && bb_h_)
+        wide_ = std::max(1.0f, float(bb_w_) / float(bb_h_) / tv);
+    game::g_wide = wide_;
+    if (wide_ != was)
+        LOGR("ultrawide: %.4f, guest %ux%u, back buffer %ux%u", wide_, guest_w_, guest_h_, bb_w_, bb_h_);
     float want = app::RenderScale(guest_h_);
     uint32_t msaa = game::Opt().msaa;
     if (std::fabs(want - scale_) > 1e-4f || msaa != msaa_set_) {
