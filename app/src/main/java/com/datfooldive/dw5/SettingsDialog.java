@@ -43,7 +43,7 @@ class SettingsDialog extends Dialog {
     private static final String[] kAntiAlias = {"OFF", "SMAA", "MSAA 2X", "MSAA 4X"};
     private static final String[] kAniso = {"GAME DEFAULT", "2X", "4X", "8X", "16X"};
     private static final int[] kAnisoValues = {0, 2, 4, 8, 16};
-    private static final String[] kAspect = {"ORIGINAL", "16:9", "STRETCH", "FILL"};
+    private static final String[] kAspect = {"ORIGINAL", "16:9", "STRETCH", "FILL", "ULTRAWIDE"};
 
     private final DW5Activity activity;  // the dialog's own context is a wrapper around it, not it
     private final int[] v = new int[COUNT];
@@ -363,7 +363,7 @@ class SettingsDialog extends Dialog {
         anisoText.setText(kAniso[index(ANISO, kAniso.length)]);
         paint(vsync, v[VSYNC] != 0);
         paint(frameSkip, v[FRAME_SKIP] != 0);
-        aspectText.setText(kAspect[Math.min(v[ASPECT], 3)]);
+        aspectText.setText(kAspect[Math.min(v[ASPECT], kAspect.length - 1)]);
         paint(fps, v[FPS] != 0);
         paint(hdr, v[HDR] != 0);
         hdr.setEnabled(v[HDR_AVAILABLE] != 0);
