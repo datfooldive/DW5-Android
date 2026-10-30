@@ -87,35 +87,8 @@ set(IMGUI_SOURCES ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_draw.c
 set_source_files_properties(${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp PROPERTIES
     COMPILE_DEFINITIONS IMGUI_IMPL_VULKAN_NO_PROTOTYPES)
 
-# the on-screen controls' letters and labels, native/ui/*.a8, into a source of their own: the Android build has no image
-# decoder, and at a byte a pixel these are small enough to carry as bytes. The .svg each one is drawn from is beside it
-# (tools/ui_icons.sh); the icons are vectors, native/ui_paths.h (tools/ui_paths.py).
-set(UI_ICONS "")
-set(UI_ICON_DECLS "")
-foreach(name letter_a letter_b letter_x letter_y label_lt label_rt label_l3 label_r3 label_start label_back)
-    file(READ ${NATIVE}/ui/${name}.a8 ICON_HEX HEX)
-    string(REGEX REPLACE "(..)" "\\\\x\\1" ICON_HEX "${ICON_HEX}")
-    string(APPEND UI_ICONS "extern const char ${name}[] = \"${ICON_HEX}\";\n")
-    string(APPEND UI_ICON_DECLS "extern const char ${name}[];\n")
-endforeach()
-file(CONFIGURE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ui_icons.cpp CONTENT
-"// written by CMake from native/ui/*.a8: 8-bit coverage, the letters 128 x 128, the labels 256 x 64
-namespace ui_icons {
-${UI_ICONS}
-}  // namespace ui_icons
-")
-file(CONFIGURE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ui_icons.h CONTENT
-"// written by CMake from native/ui/*.a8: 8-bit coverage, the letters 128 x 128, the labels 256 x 64
-#pragma once
-
-namespace ui_icons {
-${UI_ICON_DECLS}constexpr int kSize = 128;
-constexpr int kLabelW = 256, kLabelH = 64;
-}  // namespace ui_icons
-")
-
 add_library(main SHARED ${RUNTIME_SOURCES} ${GAME_HOST_SOURCES} ${ANDROID_SOURCES} ${GEN_SOURCES} ${IMGUI_SOURCES}
-            ${CMAKE_CURRENT_BINARY_DIR}/image_sha1.cpp ${CMAKE_CURRENT_BINARY_DIR}/ui_icons.cpp)
+            ${CMAKE_CURRENT_BINARY_DIR}/image_sha1.cpp)
 target_include_directories(main PRIVATE ${NATIVE}/compat ${SDK}/harness/compat ${NATIVE} ${GAME} ${SDK}/runtime ${GEN}
                            ${CMAKE_CURRENT_BINARY_DIR} ${glslang_SOURCE_DIR})
 target_include_directories(main SYSTEM PRIVATE ${imgui_SOURCE_DIR} ${vma_SOURCE_DIR}/include)

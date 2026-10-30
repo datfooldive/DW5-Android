@@ -189,12 +189,6 @@ void Handle(const SDL_Event& e) {
         case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
             UpdateSizes();
             break;
-        case SDL_EVENT_FINGER_DOWN:
-        case SDL_EVENT_FINGER_MOTION:
-        case SDL_EVENT_FINGER_UP:
-        case SDL_EVENT_FINGER_CANCELED:
-            touch::Event(e);
-            break;
         case SDL_EVENT_WINDOW_FOCUS_LOST:
             break;
         default:

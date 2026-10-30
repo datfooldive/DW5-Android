@@ -16,24 +16,29 @@ uint32_t SurfaceEpoch();           // counts returns to the front: a new window,
 std::filesystem::path FilesDir();  // internal, writable: logs, settings, hdd, shader cache
 std::filesystem::path GameDir();   // where the game's files were found, empty until FindGame finds them
 void Toast(const char* text);      // the activity's toast, any thread
-void ShowSettings();               // the activity's settings panel over the game, any thread
+// once the settings file is loaded, and as a controller comes or goes; any thread
+void ControlsSync(bool pad);
 
 }  // namespace host
 
 namespace touch {
 
+// The controls are TouchControls.java's, an overlay the activity draws; what they hold and where they sit come here
+// (native/settings_bridge.cpp).
 void Init();
-void Event(const SDL_Event& e);  // a finger event, window thread
-// the layout the editor writes, each control's centre as a fraction of the screen: read from the settings file's
-// table before the first frame, written back into it
+// what the fingers hold: input::Pad::buttons bits, a bit per analog button held, the sticks -1 to 1 with y up
+void Set(uint32_t buttons, uint32_t analog, float lx, float ly, float rx, float ry);
+void Swipe(float dx, float dy);  // the right stick swiped by a drag, as a share of a full push; eases out in Apply
+// the layout, each control's centre as a fraction of the screen and its size as a fraction of its kind's: read from
+// the settings file's table before the first frame, written back into it
 void LoadLayout(const void* table);
 void SaveLayout(void* table);
-bool Editing();  // the layout editor is on: a finger moves a control rather than pressing it
-void EditBegin();
-void EditEnd();
-void EditReset();  // the pad's own layout back
+int Units();
+void GetUnit(int unit, float& x, float& y, float& scale);
+void SetUnit(int unit, float x, float y, float scale, bool commit);  // commit writes the file
+void ResetUnits();  // the pad's own layout back, every control at its kind's size
 // gameplay: the sticks and buttons of the on-screen controls, over the pad the keyboard left
 void Apply(input::Pad& pad);
-void Draw();  // inside the ImGui frame, UiLock held
+void Frame();  // once a frame: tells the overlay when a controller comes or goes
 
 }  // namespace touch

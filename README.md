@@ -35,7 +35,7 @@ The controls sit where the original pad has them:
 | | |
 | --- | --- |
 | left stick | walk, as the pad's |
-| drag on the right | turn the camera, easing out when the finger stops |
+| right side | the right stick, which turns the camera: a finger held anywhere on the right (FLOATING), a stick of its own (FIXED), or a drag that eases out when the finger stops (SWIPE) |
 | **X Y B A** | attack, charge, musou, jump, in the pad's diamond (X left, Y up, B right, A down) |
 | **D-pad** | the menus, four buttons apart so a thumb on one does not touch the next; it walks too, as on the pad |
 | **LT** | guard, held: the blow is turned aside, and the guard counter comes off it |
@@ -48,12 +48,13 @@ The controls sit where the original pad has them:
 | **ORDERS** | the bodyguard's orders, on the pad's white button |
 | **gear** | the settings panel, top middle |
 
-The controls are discs and pills of black lacquer, each showing what it does in the game as a line icon (a sword for
-the attack, the sword swung for the charge, the burst for the musou, the leap, the shield, the bow, the flame of musou
-rage, the map and the standard) with the pad's button on it: the face buttons' letters on a badge in the pad's colours
-— A green, B red, X blue, Y yellow — MAP with the Black's dot, ORDERS with the White's, and the other buttons' names.
-Held, a control turns vermilion with a gold rim. The icons are `native/ui/*.svg`, flattened to `native/ui_paths.h` by
-`tools/ui_paths.py`; the letters and labels are `native/ui/*.a8` (`tools/ui_icons.sh`). The layout follows the Duke pad
+The controls are an Android view over the game (`TouchControls.java`), not drawn by the game's thread: round, a thin
+light outline over next to no backing so the battlefield shows through, each showing what it does in the game as a
+line icon (a sword for the attack, the sword swung for the charge, the burst for the musou, the leap, the shield, the
+bow, the flame of musou rage, the map and the standard) with the pad's button on a badge at its top: the letter, the
+name, or for MAP and ORDERS the Black's and the White's dot. Held, a control's inside washes white. Each is an image in
+`app/src/main/res/drawable-nodpi`, drawn by `tools/controls_art.py` from the icons in `native/ui/*.svg`. The layout
+follows the Duke pad
 drawing xemu ships, `data/duke.svg`, with the face buttons' diamond and the D-pad's four directions apart.
 
 A controller works as on the Xbox, with its rumble; while one is plugged in the on-screen controls are hidden, the
@@ -74,12 +75,13 @@ written to `settings.toml` at once.
 | **Anisotropic filtering** | the game's own, or 2X to 16X over it | GAME DEFAULT |
 | **Vertical sync** | FIFO, or immediate / mailbox tearing without it | ON |
 | **Frame skip** | AUTO: a frame left undrawn while the drawing is behind, the game still at its speed | AUTO |
-| **Aspect ratio** | the TV's shape, 16:9, the whole screen stretched, the whole screen covered with the overflow cut, or ultrawide: the camera sees as wide as the screen with nothing stretched, the HUD kept 16:9 in the middle | ULTRAWIDE |
+| **Aspect ratio** | the TV's shape, or widescreen: the camera sees as wide as the screen with nothing stretched, the HUD kept 16:9 in the middle | WIDESCREEN |
 | **FPS counter** | the frame rate in the top left corner, amber under the cap | ON |
 | **HDR** | HDR10 when the display offers it; greyed when it does not | OFF |
-| **Button size** | 50 to 150%, the layout's positions kept | 100% |
 | **Button opacity** | the on-screen controls, faint enough to see the game through | 100% |
-| **Move controls** | drag each control where the thumb wants it; Done and Reset in the middle of the screen | pad's layout |
+| **Right stick** | FLOATING, centred where the finger goes down; FIXED, a stick the layout editor places; SWIPE, a drag turns the view | FLOATING |
+| **Camera sensitivity** | 50 to 300%: the higher, the shorter the drag to a full push | 300% |
+| **Move controls** | drag each control where the thumb wants it, and size the one taken, 50 to 150%; Done and Reset at the bottom of the screen | pad's layout |
 
 The frame rate cap (60) and the display mode are only in the file. The cap cannot be lowered to 30: the title counts
 its timing at 60 and runs at half speed below it, and the frame skip is what keeps it there on a device that cannot
@@ -101,7 +103,7 @@ The first native build compiles 64 partitions of recompiled code for arm64 and t
 
 | path | |
 | --- | --- |
-| `native/` | the Android host: `main.cpp` (SDL window, event loop, lifecycle), `vulkan.cpp` (the Vulkan backend), `vk_shader.cpp` (HLSL to SPIR-V with glslang), `touch.cpp` (the on-screen controls), `menu.cpp` (the settings panel), `game_files.cpp`, `system_info.cpp`, `ui/*.rgba` |
+| `native/` | the Android host: `main.cpp` (SDL window, event loop, lifecycle), `vulkan.cpp` (the Vulkan backend), `vk_shader.cpp` (HLSL to SPIR-V with glslang), `touch.cpp` (the on-screen controls), `menu.cpp` (the settings panel), `game_files.cpp`, `system_info.cpp`, `ui/*.svg` (the controls' icons) |
 | `src/` | the game's host code, shared with the Linux port: hooks (the draw distance among them), the D3D12 recording on the game thread and its replay on a render thread of its own, SMAA, audio, keyboard, options |
 | `sdk/` | XboxXBE-Recomp with this port's runtime fixes |
 | `config/game.toml` | recompiler input: sections, entry point, XDK symbol map, `[abi]` |

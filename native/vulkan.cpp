@@ -4874,12 +4874,10 @@ bool VulkanBackend::DrawSmaaPasses(Image* src, VkFormat fmt, uint32_t w, uint32_
 }
 
 // where the picture lands in the back buffer: the shape the console puts out, 16:9 in its widescreen mode, pillarboxed
-// rather than stretched across the phone's wider screen, or the shape the panel's Aspect ratio asks for
+// rather than stretched across the phone's wider screen, or in WIDESCREEN the whole screen
 VulkanBackend::FramePlace VulkanBackend::PlaceFrame(const Target& t) {
     float tv = app::Widescreen() ? 16.0f / 9.0f : 4.0f / 3.0f;
-    uint32_t shape = game::Opt().aspect;
-    if (shape == 1) tv = 16.0f / 9.0f;
-    if (shape == 4) tv *= wide_;  // ultrawide: the picture the widened camera drew is the screen's shape
+    if (game::Opt().aspect) tv *= wide_;  // widescreen: the picture the widened camera drew is the screen's shape
     // only the rows the title drew: the black it leaves under its picture is not shown, and the rows kept are as
     // tall as on the TV
     bool cut = shown_rows_ && shown_rows_ < t.gh;
@@ -4887,16 +4885,8 @@ VulkanBackend::FramePlace VulkanBackend::PlaceFrame(const Target& t) {
     float w = float(bb_w_);
     float h = float(bb_h_);
     FramePlace p;
-    if (shape == 3) {
-        // FILL: the picture keeps the TV's shape and is zoomed until the screen is covered, so a screen wider than the
-        // TV loses rows at the top and bottom rather than gaining columns at the sides
-        p.w = std::max(w, h * aspect);
-        p.h = p.w / aspect;
-    } else {
-        if (shape == 2) aspect = w / std::max(h, 1.0f);
-        p.w = std::min(w, h * aspect);
-        p.h = p.w / aspect;
-    }
+    p.w = std::min(w, h * aspect);
+    p.h = p.w / aspect;
     p.x = (w - p.w) / 2;
     p.y = (h - p.h) / 2;
     p.rows = cut ? float(shown_rows_) / float(t.gh) : 1.0f;
@@ -5225,14 +5215,14 @@ void VulkanBackend::Present(const Surface& front) {
 }
 
 void VulkanBackend::ApplySettings() {
-    // ultrawide: the camera hook widens the next frame's projection by as much as the screen is wider than 16:9
+    // widescreen: the camera hook widens the next frame's projection by as much as the screen is wider than 16:9
     // against the picture's 16:9 as PlaceFrame shows it: only the rows the title drew (448 of 480), as tall as on the
     // TV, so the cut picture is wider than 16:9 and the factor that fills the screen with it that much smaller
     float was = wide_;
     wide_ = 1;
     float tv = 16.0f / 9.0f;
     if (shown_rows_ && shown_rows_ < guest_h_) tv *= float(guest_h_) / float(shown_rows_);
-    if (game::Opt().aspect == 4 && app::Widescreen() && bb_h_)
+    if (game::Opt().aspect && app::Widescreen() && bb_h_)
         wide_ = std::max(1.0f, float(bb_w_) / float(bb_h_) / tv);
     game::g_wide = wide_;
     if (wide_ != was)

@@ -1,14 +1,9 @@
 package com.datfooldive.dw5;
 
 import android.app.Dialog;
-import android.content.Context;
-import android.graphics.Canvas;
-import android.graphics.Paint;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
-import android.util.TypedValue;
 import android.view.Gravity;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -26,34 +21,29 @@ class SettingsDialog extends Dialog {
 
     // the numbers native/settings_bridge.cpp reads and writes, in its order
     static final int RESOLUTION = 0, ANTI_ALIAS = 1, ANISO = 2, VSYNC = 3, FRAME_SKIP = 4, ASPECT = 5, FPS = 6,
-            HDR = 7, HDR_AVAILABLE = 8, SCALE = 9, OPACITY = 10, OUT_W = 11, OUT_H = 12, COUNT = 13;
+            HDR = 7, HDR_AVAILABLE = 8, OPACITY = 9, OUT_W = 10, OUT_H = 11, CAMERA = 12, CAMERA_MODE = 13,
+            COUNT = 14;
 
-    // ImGui's StyleColorsDark, the alpha ones over the panel's background
-    private static final int BG = 0xF00F0F0F;          // WindowBg
-    private static final int BORDER = 0xFF4A4A55;      // Border
-    private static final int TITLE = 0xFF294A7A;       // TitleBgActive
-    private static final int TEXT = 0xFFFFFFFF;        // Text
-    private static final int DIM = 0xFF808080;         // TextDisabled
-    private static final int FRAME = 0xFF1D2F48;       // FrameBg
-    private static final int BUTTON = 0xFF1F3B5E;      // Button
-    private static final int BUTTON_ON = 0xFF3369AD;   // TabActive
-    private static final int GRAB = 0xFF3D85E0;        // SliderGrab
-    private static final int GRAB_ON = 0xFF4296FA;     // SliderGrabActive, CheckMark
+    // ImGui's StyleColorsDark (Theme)
+    private static final int BG = Theme.BG, BORDER = Theme.BORDER, TITLE = Theme.TITLE, TEXT = Theme.TEXT,
+            DIM = Theme.DIM, FRAME = Theme.FRAME, BUTTON = Theme.BUTTON, BUTTON_ON = Theme.BUTTON_ON,
+            GRAB = Theme.GRAB, GRAB_ON = Theme.GRAB_ON;
 
     private static final String[] kAntiAlias = {"OFF", "SMAA", "MSAA 2X", "MSAA 4X"};
     private static final String[] kAniso = {"GAME DEFAULT", "2X", "4X", "8X", "16X"};
     private static final int[] kAnisoValues = {0, 2, 4, 8, 16};
-    private static final String[] kAspect = {"ORIGINAL", "16:9", "STRETCH", "FILL", "ULTRAWIDE"};
+    private static final String[] kAspect = {"ORIGINAL", "WIDESCREEN"};
+    private static final String[] kCameraMode = {"FLOATING", "FIXED", "SWIPE"};
 
     private final DW5Activity activity;  // the dialog's own context is a wrapper around it, not it
     private final int[] v = new int[COUNT];
-    private final Slider[] bars = new Slider[COUNT];
+    private final Theme.Slider[] bars = new Theme.Slider[COUNT];
     private boolean loading;  // a reload filling the widgets is not a change to write back
 
     private final TextView[] tabs = new TextView[5];
     private final LinearLayout[] pages = new LinearLayout[5];
 
-    private TextView antiAliasText, anisoText, aspectText;
+    private TextView antiAliasText, anisoText, aspectText, cameraModeText;
     private TextView vsync, frameSkip, fps, hdr;
 
     SettingsDialog(DW5Activity activity) {
@@ -163,8 +153,9 @@ class SettingsDialog extends Dialog {
     }
 
     private void controls(LinearLayout box) {
-        slider(box, "BUTTON SIZE", SCALE, 50, 150, 1);
         slider(box, "BUTTON OPACITY", OPACITY, 20, 100, 1);
+        cameraModeText = stepper(box, "RIGHT STICK", kCameraMode, CAMERA_MODE);
+        slider(box, "CAMERA SENSITIVITY", CAMERA, 50, 300, 5);
 
         TextView edit = chip("MOVE CONTROLS", 13);
         edit.setPadding(0, dp(7), 0, dp(7));
@@ -214,12 +205,13 @@ class SettingsDialog extends Dialog {
         row.setPadding(0, dp(3), 0, dp(3));
         row.addView(text(label, 13, TEXT), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        Slider bar = new Slider(getContext(), (max - min) / step);
-        bar.listener = new Slider.Listener() {
+        Theme.Slider bar = new Theme.Slider(getContext(), (max - min) / step);
+        bar.listener = new Theme.Slider.Listener() {
             @Override
             public void changed(int progress) {
                 if (loading) return;
                 DW5Activity.nativeSettingsSet(key, min + progress * step, false);
+                activity.settingsChanged();
                 show(key, min, step);
             }
 
@@ -276,6 +268,7 @@ class SettingsDialog extends Dialog {
         int written = key == ANISO ? kAnisoValues[i] : i;
         v[key] = written;
         DW5Activity.nativeSettingsSet(key, written, true);
+        activity.settingsChanged();
         value.setText(names[i]);
     }
 
@@ -342,6 +335,7 @@ class SettingsDialog extends Dialog {
         TextView defaults = chip("DEFAULTS", 13);
         defaults.setOnClickListener(x -> {
             DW5Activity.nativeSettingsDefaults();
+            activity.settingsChanged();
             reload();
         });
         LinearLayout.LayoutParams one = new LinearLayout.LayoutParams(dp(90), dp(28));
@@ -368,130 +362,36 @@ class SettingsDialog extends Dialog {
         paint(hdr, v[HDR] != 0);
         hdr.setEnabled(v[HDR_AVAILABLE] != 0);
         hdr.setAlpha(v[HDR_AVAILABLE] != 0 ? 1f : 0.4f);
-        bars[SCALE].setProgress(v[SCALE] - 50);
-        show(SCALE, 50, 1);
         bars[OPACITY].setProgress(v[OPACITY] - 20);
         show(OPACITY, 20, 1);
+        cameraModeText.setText(kCameraMode[Math.min(v[CAMERA_MODE], 2)]);
+        bars[CAMERA].setProgress((v[CAMERA] - 50) / 5);
+        show(CAMERA, 50, 5);
         loading = false;
     }
 
     // ---------------------------------------------------------------- the pieces
 
     private TextView text(String s, float sp, int color) {
-        TextView t = new TextView(getContext());
-        t.setText(s);
-        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
-        t.setTextColor(color);
-        return t;
+        return Theme.text(getContext(), s, sp, color);
     }
 
     // an ImGui button
     private TextView chip(String s, float sp) {
-        TextView t = text(s, sp, TEXT);
-        t.setGravity(Gravity.CENTER);
-        t.setBackground(box(BUTTON, false));
-        t.setClickable(true);
-        t.setFocusable(true);
-        t.setPadding(dp(6), dp(4), dp(6), dp(4));
-        return t;
+        return Theme.chip(getContext(), s, sp);
     }
 
     // square, filled, a one pixel border when asked
     private static GradientDrawable box(int color, boolean border) {
-        GradientDrawable d = new GradientDrawable();
-        d.setColor(color);
-        if (border) d.setStroke(1, BORDER);
-        return d;
+        return Theme.box(color, border);
     }
 
     // ImGui's separator
     private View line() {
-        View rule = new View(getContext());
-        rule.setBackgroundColor(BORDER);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1);
-        lp.setMargins(0, dp(3), 0, dp(3));
-        rule.setLayoutParams(lp);
-        return rule;
-    }
-
-    // ImGui's SliderInt: a flat frame, a narrow grab at the value, the value written across the middle. A finger
-    // anywhere on it takes the grab there, and the value is written once more when it lets go
-    private static class Slider extends View {
-        interface Listener {
-            void changed(int progress);
-            void released(int progress);
-        }
-
-        final int max;
-        int progress;
-        Listener listener;
-        private String text = "";
-        private boolean held;
-        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final float grabW;
-
-        Slider(Context c, int max) {
-            super(c);
-            this.max = Math.max(max, 1);
-            float density = c.getResources().getDisplayMetrics().density;
-            grabW = 10 * density;
-            paint.setTextSize(13 * c.getResources().getDisplayMetrics().scaledDensity);
-            paint.setTextAlign(Paint.Align.CENTER);
-        }
-
-        void setProgress(int p) {
-            progress = Math.max(0, Math.min(p, max));
-            invalidate();
-        }
-
-        void setText(String s) {
-            text = s;
-            invalidate();
-        }
-
-        @Override
-        protected void onDraw(Canvas canvas) {
-            float w = getWidth(), h = getHeight(), pad = 2;
-            paint.setColor(FRAME);
-            canvas.drawRect(0, 0, w, h, paint);
-            float x = pad + (w - 2 * pad - grabW) * progress / max;
-            paint.setColor(held ? GRAB_ON : GRAB);
-            canvas.drawRect(x, pad, x + grabW, h - pad, paint);
-            paint.setColor(TEXT);
-            canvas.drawText(text, w / 2, h / 2 - (paint.descent() + paint.ascent()) / 2, paint);
-        }
-
-        @Override
-        public boolean onTouchEvent(MotionEvent e) {
-            switch (e.getActionMasked()) {
-                case MotionEvent.ACTION_DOWN:
-                    held = true;
-                    getParent().requestDisallowInterceptTouchEvent(true);
-                    // fall through: the press moves the grab as a drag does
-                case MotionEvent.ACTION_MOVE: {
-                    float span = Math.max(getWidth() - grabW, 1);
-                    int p = Math.round((e.getX() - grabW / 2) / span * max);
-                    p = Math.max(0, Math.min(p, max));
-                    if (p != progress) {
-                        progress = p;
-                        if (listener != null) listener.changed(p);
-                    }
-                    invalidate();
-                    return true;
-                }
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
-                    held = false;
-                    invalidate();
-                    if (listener != null) listener.released(progress);
-                    return true;
-                default:
-                    return true;
-            }
-        }
+        return Theme.line(getContext());
     }
 
     private int dp(float value) {
-        return (int) (value * getContext().getResources().getDisplayMetrics().density + 0.5f);
+        return Theme.dp(getContext(), value);
     }
 }

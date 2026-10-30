@@ -15,6 +15,7 @@ import android.view.InputEvent;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
@@ -37,6 +38,7 @@ public class DW5Activity extends SDLActivity {
     private static DW5Activity current;  // for the toasts the game's threads ask for
     private AlertDialog dialog;
     private SettingsDialog settings;
+    private TouchControls controls;
     private boolean notNow;  // the player turned the access down this run
 
     @Override
@@ -49,6 +51,12 @@ public class DW5Activity extends SDLActivity {
         super.onCreate(savedInstanceState);
         current = this;
         fillDisplay();
+        // the controls over the game's surface, taking every touch on it
+        if (mLayout != null) {
+            controls = new TouchControls(this);
+            mLayout.addView(controls, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT));
+        }
         File own = getExternalFilesDir(null);
         if (own != null) new File(own, "assets").mkdirs();
     }
@@ -82,32 +90,46 @@ public class DW5Activity extends SDLActivity {
     static native void nativeSettingsDefaults();
     static native boolean[] nativeCheats();
     static native void nativeCheatSet(int index, boolean on);
-    static native void nativeEditLayout();
-    static native void nativeEditEnd();
-    static native void nativeEditReset();
 
     private LayoutEditor editor;
 
     // the panel's MOVE CONTROLS: it closes, the controls stay drawn where they are and a finger moves them; the bar
     // this puts at the bottom of the screen is the editor's Done and Reset
     public void beginLayoutEdit() {
-        nativeEditLayout();
-        if (editor == null) editor = new LayoutEditor(this);
+        if (controls == null) return;
+        if (editor == null) editor = new LayoutEditor(this, controls);
         editor.show();
+        controls.beginEdit(editor);
         hideSystemBars();
     }
 
-    // the gear (native/touch.cpp): the settings panel over the game, which keeps running behind it
-    public void showSettings() {
-        runOnUiThread(() -> {
-            if (settings != null && settings.isShowing()) return;
-            settings = new SettingsDialog(this);
-            settings.setOnDismissListener(d -> {
-                settings = null;
-                hideSystemBars();
-            });
-            settings.show();
+    // the gear (TouchControls): the settings panel over the game, which keeps running behind it
+    void showSettings() {
+        if (settings != null && settings.isShowing()) return;
+        settings = new SettingsDialog(this);
+        settings.setOnDismissListener(d -> {
+            settings = null;
             hideSystemBars();
+        });
+        settings.show();
+        hideSystemBars();
+    }
+
+    // a value in the panel changed: the controls read their opacity and right stick from it, the layout with DEFAULTS
+    void settingsChanged() {
+        if (controls == null) return;
+        controls.reloadSettings();
+        controls.reloadLayout();
+    }
+
+    // native/touch.cpp, from the game's thread: the settings file is loaded (the controls were made before it was, and
+    // read the layout and the panel's values again now), or a controller came or went
+    public void controlsSync(boolean pad) {
+        runOnUiThread(() -> {
+            if (controls == null) return;
+            controls.reloadLayout();
+            controls.reloadSettings();
+            controls.setPad(pad);
         });
     }
 
@@ -150,6 +172,7 @@ public class DW5Activity extends SDLActivity {
     @Override
     protected void onPause() {
         nativeLooseRelease();  // its ups go elsewhere while the game is not in front
+        if (controls != null) controls.releaseAll();
         super.onPause();
     }
 
